@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulador mano robótica</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="css/estilos.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+        "avr8js": "https://cdn.jsdelivr.net/npm/avr8js@0.21.1/+esm"
+      }
+    }
+  </script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="barra">
+    <div class="titulo">
+      <h1>Simulador de mano robótica</h1>
+      <span id="estado" class="chip">Iniciando…</span>
+    </div>
+    <div class="acciones">
+      <select id="sketch" aria-label="Sketch">
+        <option value="mano_robotica_teclado">mano_robotica_teclado.ino</option>
+        <option value="prueba_servos">prueba_servos.ino</option>
+      </select>
+      <button id="btn-compilar" class="primario" title="Cmd/Ctrl + Enter">Compilar y ejecutar</button>
+      <button id="btn-pausa">Pausa</button>
+      <button id="btn-reiniciar" title="Reinicia el Arduino simulado (como el botón RESET)">Reiniciar</button>
+      <a class="enlace" href="README.html" target="_blank" rel="noopener">¿Cómo funciona?</a>
+    </div>
+  </header>
+
+  <main class="rejilla">
+    <section class="panel vista">
+      <div id="vista3d"></div>
+      <div class="vista-controles">
+        <label><input type="checkbox" id="chk-etiquetas" checked> Etiquetas</label>
+        <button id="btn-vista">Centrar vista</button>
+      </div>
+      <p class="pista">Arrastra para girar · rueda para acercar · clic derecho para mover</p>
+    </section>
+
+    <aside class="lateral">
+      <section class="panel">
+        <h2>Teclado 4x4</h2>
+        <div id="teclado" class="membrana"></div>
+        <p class="nota">También funciona con el teclado de la computadora: 0–9, A–D, * y #.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Servos</h2>
+        <table id="tabla-servos">
+          <thead><tr><th>Dedo</th><th>Pin</th><th>Ángulo</th><th>Flexión</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <dl class="metricas">
+          <div><dt>Última tecla</dt><dd id="ultima-tecla">—</dd></div>
+          <div><dt>Tiempo simulado</dt><dd id="tiempo">—</dd></div>
+          <div><dt>Velocidad</dt><dd id="velocidad">—</dd></div>
+        </dl>
+      </section>
+    </aside>
+
+    <section class="panel editor">
+      <div class="cabecera">
+        <h2>Código Arduino</h2>
+        <div class="acciones">
+          <button id="btn-recargar">Recargar archivo</button>
+          <button id="btn-guardar">Guardar en .ino</button>
+        </div>
+      </div>
+      <textarea id="codigo"></textarea>
+    </section>
+
+    <section class="panel salida">
+      <div class="pestanas" role="tablist">
+        <button data-tab="log" class="activa">Compilación</button>
+        <button data-tab="serie">Monitor serie</button>
+      </div>
+      <pre id="log" class="consola"></pre>
+      <pre id="serie" class="consola" hidden></pre>
+    </section>
+  </main>
+</body>
+</html>

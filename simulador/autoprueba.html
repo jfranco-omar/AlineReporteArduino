@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Autoprueba del simulador</title>
+<style>
+  :root { --fondo: #f6f7f9; --papel: #fff; --texto: #1d2127; --suave: #5d6570; --borde: #dde1e6; --ok: #1f8a4c; --error: #c4352b; color-scheme: light; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fondo: #131518; --papel: #1b1e23; --texto: #e7e9ec; --suave: #9da4ae; --borde: #30343b; --ok: #4cc17f; --error: #ff7a6e; color-scheme: dark; }
+  }
+  body { margin: 0; background: var(--fondo); color: var(--texto); font: 15px/1.5 system-ui, -apple-system, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  p { color: var(--suave); margin: 0 0 20px; }
+  table { width: 100%; border-collapse: collapse; background: var(--papel); border: 1px solid var(--borde); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--borde); font-variant-numeric: tabular-nums; }
+  th { font-size: 13px; color: var(--suave); }
+  .ok { color: var(--ok); font-weight: 600; }
+  .falla { color: var(--error); font-weight: 600; }
+  #resumen { font-size: 18px; font-weight: 700; margin: 18px 0 0; }
+</style>
+<script type="importmap">{"imports":{"avr8js":"https://cdn.jsdelivr.net/npm/avr8js@0.21.1/+esm"}}</script>
+</head>
+<body>
+<main>
+  <h1>Autoprueba del simulador</h1>
+  <p>Compila <code>mano_robotica_teclado.ino</code>, lo corre en el Arduino virtual, pulsa teclas y compara los ángulos de los servos con los del código. Tarda unos segundos.</p>
+  <table>
+    <thead><tr><th>Prueba</th><th>Resultado (pulgar, índice, medio, anular, meñique)</th><th></th></tr></thead>
+    <tbody id="filas"><tr><td colspan="3">Corriendo…</td></tr></tbody>
+  </table>
+  <div id="resumen"></div>
+</main>
+<script type="module">
+import { DEDOS, TECLADO, pinArduino } from './js/config.js';
+import { EmuladorAVR, FRECUENCIA } from './js/avr.js';
+import { LectorServos } from './js/servos.js';
+import { TecladoMatricial } from './js/teclado.js';
+
+const filas = [];
+const fila = (prueba, resultado, ok) => filas.push({ prueba, resultado, ok });
+const pintar = () => {
+  document.getElementById('filas').innerHTML = filas
+    .map((f) => `<tr><td>${f.prueba}</td><td>${f.resultado}</td><td class="${f.ok ? 'ok' : 'falla'}">${f.ok ? 'OK' : 'FALLA'}</td></tr>`)
+    .join('');
+  const fallas = filas.filter((f) => !f.ok).length;
+  const r = document.getElementById('resumen');
+  r.textContent = fallas ? `${fallas} prueba(s) fallaron` : `Las ${filas.length} pruebas pasaron`;
+  r.className = fallas ? 'falla' : 'ok';
+};
+
+try {
+  const codigo = await (await fetch('/api/sketch?nombre=mano_robotica_teclado')).text();
+  const res = await (await fetch('/api/compilar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ codigo }),
+  })).json();
+  fila('Compilar con arduino-cli', res.ok ? 'compilado' : res.log, res.ok);
+  if (!res.ok) throw new Error('sin compilar');
+
+  const dedos = DEDOS.map((d) => ({ ...d, ...pinArduino(d.pin), objetivo: null, actual: d.abierto }));
+  const emu = new EmuladorAVR(res.hex);
+  new LectorServos(emu, dedos);
+  const tec = new TecladoMatricial(emu, TECLADO.filas.map(pinArduino), TECLADO.columnas.map(pinArduino));
+  const correr = (s) => {
+    const fin = emu.cpu.cycles + s * FRECUENCIA;
+    while (emu.cpu.cycles < fin) { emu.ejecutar(20000); tec.tick(); }
+  };
+  const angulos = () => dedos.map((d) => d.objetivo).join(', ');
+  const pos = (t) => { for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) if (TECLADO.teclas[r][c] === t) return [r, c]; };
+  const tecla = (t) => { const [r, c] = pos(t); tec.pulsar(r, c); correr(0.05); tec.soltar(r, c); correr(0.4); };
+
+  const t0 = performance.now();
+  correr(0.5);
+  fila('Arranque: mano abierta', angulos(), angulos() === '106, 180, 90, 90, 90');
+
+  const casos = [
+    ['2', 'Tecla 2: puño', '6, 90, 180, 150, 180'],
+    ['3', 'Tecla 3: letra A', '106, 90, 180, 150, 180'],
+    ['4', 'Tecla 4: letra L', '106, 180, 180, 150, 180'],
+    ['5', 'Tecla 5: número 1', '6, 180, 180, 150, 180'],
+    ['6', 'Tecla 6: número 2', '6, 180, 90, 150, 180'],
+    ['0', 'Tecla 0: abrir', '106, 180, 90, 90, 90'],
+  ];
+  for (const [t, nombre, esperado] of casos) {
+    tecla(t);
+    fila(nombre, angulos(), angulos() === esperado);
+  }
+
+  tecla('1');
+  let previo = dedos[1].objetivo;
+  const cambios = [];
+  for (let i = 0; i < 300; i++) {
+    correr(0.01);
+    if (dedos[1].objetivo !== previo) { cambios.push(emu.segundos); previo = dedos[1].objetivo; }
+  }
+  const pasos = cambios.slice(1).map((s, i) => s - cambios[i]);
+  const ritmoOk = pasos.length >= 3 && pasos.every((p) => Math.abs(p - 0.7) < 0.03);
+  fila('Tecla 1: abre y cierra cada 700 ms', `cambios cada ${pasos.map((p) => p.toFixed(2)).join(' / ')} s`, ritmoOk);
+
+  tecla('0');
+  correr(1.5);
+  fila('Tecla 0 detiene el modo continuo', angulos(), angulos() === '106, 180, 90, 90, 90');
+
+  const seg = emu.segundos;
+  const ms = performance.now() - t0;
+  const vel = Math.round(((seg * 1000) / ms) * 100);
+  fila('Velocidad del emulador', `${seg.toFixed(1)} s simulados en ${(ms / 1000).toFixed(1)} s reales (${vel} % de tiempo real)`, vel >= 90);
+} catch (e) {
+  if (e.message !== 'sin compilar') fila('Error', e.message, false);
+}
+pintar();
+</script>
+</body>
+</html>

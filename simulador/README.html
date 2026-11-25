@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cómo funciona el simulador</title>
+<style>
+  :root {
+    --fondo: #f6f7f9;
+    --papel: #ffffff;
+    --texto: #1d2127;
+    --suave: #5d6570;
+    --borde: #dde1e6;
+    --acento: #d9571a;
+    --acento-tinte: #fbe9df;
+    --azul: #3f78c2;
+    --rojo: #c8453b;
+    --codigo: #f1f3f5;
+    --linea: #8a919b;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --fondo: #131518;
+      --papel: #1b1e23;
+      --texto: #e7e9ec;
+      --suave: #9da4ae;
+      --borde: #30343b;
+      --acento: #f07a3c;
+      --acento-tinte: #3a261b;
+      --codigo: #23272d;
+      --linea: #7d848e;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--fondo);
+    color: var(--texto);
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .hoja { max-width: 780px; margin: 0 auto; padding: 40px 20px 80px; }
+  header { border-bottom: 1px solid var(--borde); padding-bottom: 20px; margin-bottom: 28px; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 10px; }
+  .meta { color: var(--suave); font-size: 14px; margin: 0; }
+  .lead { font-size: 18px; margin: 18px 0 0; }
+  h2 { font-size: 22px; margin: 48px 0 12px; padding-top: 8px; }
+  h3 { font-size: 17px; margin: 28px 0 8px; }
+  p, li { max-width: 68ch; }
+  a { color: var(--acento); }
+  code, pre {
+    font: 13.5px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    background: var(--codigo);
+    border-radius: 6px;
+  }
+  code { padding: 1px 5px; }
+  pre { padding: 14px 16px; overflow-x: auto; border: 1px solid var(--borde); }
+  pre code { padding: 0; background: none; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--borde); vertical-align: top; }
+  thead th { font-size: 13px; color: var(--suave); font-weight: 600; }
+  .tabla { overflow-x: auto; }
+  nav.indice {
+    background: var(--papel);
+    border: 1px solid var(--borde);
+    border-radius: 12px;
+    padding: 16px 20px;
+  }
+  nav.indice h2 { margin: 0 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: var(--suave); padding: 0; }
+  nav.indice ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 32px; }
+  nav.indice li { margin: 2px 0; break-inside: avoid; }
+  figure { margin: 22px 0; background: var(--papel); border: 1px solid var(--borde); border-radius: 12px; padding: 18px; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption { font-size: 14px; color: var(--suave); margin-top: 10px; }
+  .nota {
+    background: var(--acento-tinte);
+    border-left: 4px solid var(--acento);
+    border-radius: 0 8px 8px 0;
+    padding: 12px 16px;
+    margin: 18px 0;
+  }
+  .nota p { margin: 0; }
+  .pasos { counter-reset: paso; list-style: none; padding: 0; }
+  .pasos > li { counter-increment: paso; position: relative; padding-left: 44px; margin: 0 0 18px; }
+  .pasos > li::before {
+    content: counter(paso);
+    position: absolute; left: 0; top: 0;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--acento); color: #fff;
+    font-weight: 700; display: grid; place-items: center; font-size: 15px;
+  }
+  .t { display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px; border-radius: 6px; color: #fff; font-weight: 700; font-size: 14px; background: var(--azul); }
+  .t.esp { background: var(--rojo); }
+  /* Colores de los diagramas */
+  .d-texto { fill: var(--texto); }
+  .d-suave { fill: var(--suave); }
+  .d-caja { fill: var(--papel); stroke: var(--linea); stroke-width: 1.25; }
+  .d-acento { fill: var(--acento-tinte); stroke: var(--acento); stroke-width: 2; }
+  .d-zona { fill: var(--codigo); stroke: var(--borde); stroke-width: 1; }
+  .d-linea { stroke: var(--linea); stroke-width: 1.25; fill: none; }
+  .d-pulso { stroke: var(--acento); stroke-width: 2.5; fill: none; }
+  .d-flecha { fill: var(--linea); }
+  @media (max-width: 600px) {
+    .hoja { padding-top: 24px; }
+    h1 { font-size: 25px; }
+    nav.indice ol { columns: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="hoja">
+
+<header>
+  <h1>Cómo funciona el simulador de la mano robótica</h1>
+  <p class="meta">Guía para quien lo usa por primera vez · lectura de unos 12 minutos</p>
+  <p class="lead">El simulador ejecuta <strong>el mismo programa</strong> que se carga en el Arduino real, dentro de un Arduino UNO virtual que corre en el navegador. Cada vez que el programa mueve un servo, la mano 3D mueve el dedo correspondiente. Si cambias el código, la mano hace exactamente lo que haría la real.</p>
+</header>
+
+<nav class="indice" aria-label="Contenido">
+  <h2>Contenido</h2>
+  <ol>
+    <li><a href="#usar">Usarlo en 3 pasos</a></li>
+    <li><a href="#pantalla">Qué hay en la pantalla</a></li>
+    <li><a href="#recorrido">El recorrido de una tecla</a></li>
+    <li><a href="#piezas">Las piezas del simulador</a></li>
+    <li><a href="#emulador">El Arduino virtual</a></li>
+    <li><a href="#teclado">Cómo se simula el teclado</a></li>
+    <li><a href="#servos">Cómo se leen los servos</a></li>
+    <li><a href="#dedos">Del ángulo al dedo</a></li>
+    <li><a href="#gestos">Teclas y gestos</a></li>
+    <li><a href="#modificar">Agregar un gesto</a></li>
+    <li><a href="#limites">Lo que no simula</a></li>
+    <li><a href="#problemas">Problemas comunes</a></li>
+  </ol>
+</nav>
+
+<h2 id="usar">1. Usarlo en 3 pasos</h2>
+<ol class="pasos">
+  <li>
+    <strong>Instalar las herramientas (solo una vez).</strong> En la Terminal de una Mac:
+    <pre><code>brew install arduino-cli
+arduino-cli core update-index
+arduino-cli core install arduino:avr
+arduino-cli lib install Keypad Servo
+softwareupdate --install-rosetta --agree-to-license</code></pre>
+    La última línea solo hace falta en Macs con chip Apple (M1, M2…): el compilador de Arduino para Mac está hecho para Intel.
+  </li>
+  <li>
+    <strong>Arrancar el servidor</strong> desde la carpeta del proyecto:
+    <pre><code>cd ~/Proyectos/AlineReporteArduino
+python3 simulador/servidor.py</code></pre>
+  </li>
+  <li>
+    <strong>Abrir <code>http://localhost:8000</code></strong> en el navegador. El programa se compila y arranca solo. Pulsa las teclas del teclado en pantalla o las de tu computadora.
+  </li>
+</ol>
+<p>Para apagarlo, vuelve a la Terminal y pulsa <code>Ctrl + C</code>.</p>
+
+<h2 id="pantalla">2. Qué hay en la pantalla</h2>
+<div class="tabla"><table>
+  <thead><tr><th>Zona</th><th>Para qué sirve</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Mano 3D</strong></td><td>Se gira arrastrando, se acerca con la rueda y se mueve con clic derecho. Las poleas naranjas del antebrazo giran con el ángulo real de cada servo, y los hilos blancos van de cada polea a su dedo.</td></tr>
+    <tr><td><strong>Teclado 4x4</strong></td><td>Igual al teclado de membrana del circuito. También responde a 0–9, A–D, * y # del teclado de la computadora, salvo cuando escribes en el editor.</td></tr>
+    <tr><td><strong>Servos</strong></td><td>El ángulo que el programa pide a cada servo y cuánto está doblado el dedo. Un ángulo en <span style="color:var(--rojo);font-weight:600">rojo</span> significa que el código pide más de lo que el dedo puede moverse.</td></tr>
+    <tr><td><strong>Tiempo y velocidad</strong></td><td>Cuántos segundos lleva corriendo el Arduino virtual. Una velocidad de 100 % significa que va a tiempo real.</td></tr>
+    <tr><td><strong>Código Arduino</strong></td><td>Editor del sketch. <em>Compilar y ejecutar</em> (o Cmd/Ctrl + Enter) carga tus cambios; <em>Guardar en .ino</em> los escribe en el archivo del proyecto.</td></tr>
+    <tr><td><strong>Compilación / Monitor serie</strong></td><td>Los mensajes del compilador (errores incluidos) y lo que el programa imprima con <code>Serial.println()</code>.</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="recorrido">3. El recorrido de una tecla</h2>
+<p>Cuando pulsas una tecla pasan seis cosas en orden. Tres ocurren dentro del Arduino virtual, igual que en el real, y tres son el simulador leyendo y dibujando el resultado.</p>
+
+<figure>
+  <svg viewBox="0 0 760 330" role="img" aria-label="Recorrido de una tecla hasta el dedo">
+    <defs>
+      <marker id="f1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="d-flecha"/></marker>
+    </defs>
+    <rect x="12" y="38" width="736" height="122" rx="12" class="d-zona"/>
+    <text x="28" y="62" class="d-suave" font-size="13" font-weight="600">DENTRO DEL ARDUINO VIRTUAL (tu código)</text>
+    <rect x="12" y="186" width="736" height="122" rx="12" class="d-zona"/>
+    <text x="28" y="210" class="d-suave" font-size="13" font-weight="600">EL SIMULADOR LEE Y DIBUJA</text>
+
+    <rect x="30" y="76" width="210" height="68" rx="8" class="d-caja"/>
+    <text x="135" y="104" text-anchor="middle" class="d-texto" font-size="14" font-weight="600">1 · Pulsas una tecla</text>
+    <text x="135" y="124" text-anchor="middle" class="d-suave" font-size="12.5">une una fila con una columna</text>
+
+    <rect x="275" y="76" width="210" height="68" rx="8" class="d-caja"/>
+    <text x="380" y="104" text-anchor="middle" class="d-texto" font-size="14" font-weight="600">2 · teclado.getKey()</text>
+    <text x="380" y="124" text-anchor="middle" class="d-suave" font-size="12.5">la librería Keypad la detecta</text>
+
+    <rect x="520" y="76" width="210" height="68" rx="8" class="d-caja"/>
+    <text x="625" y="104" text-anchor="middle" class="d-texto" font-size="14" font-weight="600">3 · servo.write(ángulo)</text>
+    <text x="625" y="124" text-anchor="middle" class="d-suave" font-size="12.5">pulso eléctrico en el pin</text>
+
+    <rect x="520" y="224" width="210" height="68" rx="8" class="d-caja"/>
+    <text x="625" y="252" text-anchor="middle" class="d-texto" font-size="14" font-weight="600">4 · Se mide el pulso</text>
+    <text x="625" y="272" text-anchor="middle" class="d-suave" font-size="12.5">1.5 ms → 90°</text>
+
+    <rect x="275" y="224" width="210" height="68" rx="8" class="d-caja"/>
+    <text x="380" y="252" text-anchor="middle" class="d-texto" font-size="14" font-weight="600">5 · Ángulo → flexión</text>
+    <text x="380" y="272" text-anchor="middle" class="d-suave" font-size="12.5">según la calibración del dedo</text>
+
+    <rect x="30" y="224" width="210" height="68" rx="8" class="d-acento"/>
+    <text x="135" y="252" text-anchor="middle" class="d-texto" font-size="14" font-weight="600">6 · El dedo se dobla</text>
+    <text x="135" y="272" text-anchor="middle" class="d-suave" font-size="12.5">a la velocidad de un servo</text>
+
+    <path d="M240 110H273" class="d-linea" marker-end="url(#f1)"/>
+    <path d="M485 110H518" class="d-linea" marker-end="url(#f1)"/>
+    <path d="M625 144V222" class="d-linea" marker-end="url(#f1)"/>
+    <path d="M520 258H487" class="d-linea" marker-end="url(#f1)"/>
+    <path d="M275 258H242" class="d-linea" marker-end="url(#f1)"/>
+    <text x="635" y="188" class="d-suave" font-size="12">pin del servo</text>
+  </svg>
+  <figcaption>Los pasos 1 a 3 los decide tu código; el simulador no sabe qué gesto es, solo ve las señales eléctricas de los pines.</figcaption>
+</figure>
+
+<p>Este es el punto clave: el simulador <strong>no traduce tu código</strong> ni busca palabras como <code>letraA()</code>. Solo observa los pines del microcontrolador, como lo haría un osciloscopio conectado a la placa. Por eso cualquier cambio en el código se refleja sin tocar el simulador.</p>
+
+<h2 id="piezas">4. Las piezas del simulador</h2>
+<p>Hay dos programas trabajando juntos: un pequeño servidor en tu computadora, que compila, y la página en el navegador, que ejecuta y dibuja.</p>
+
+<figure>
+  <svg viewBox="0 0 760 300" role="img" aria-label="Piezas del simulador: servidor y navegador">
+    <defs>
+      <marker id="f2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="d-flecha"/></marker>
+    </defs>
+    <rect x="12" y="20" width="230" height="262" rx="12" class="d-zona"/>
+    <text x="28" y="46" class="d-suave" font-size="13" font-weight="600">TU COMPUTADORA</text>
+    <rect x="30" y="64" width="194" height="70" rx="8" class="d-caja"/>
+    <text x="127" y="92" text-anchor="middle" class="d-texto" font-size="14" font-weight="600">servidor.py</text>
+    <text x="127" y="112" text-anchor="middle" class="d-suave" font-size="12.5">sirve la página y archivos</text>
+    <rect x="30" y="160" width="194" height="70" rx="8" class="d-caja"/>
+    <text x="127" y="188" text-anchor="middle" class="d-texto" font-size="14" font-weight="600">arduino-cli</text>
+    <text x="127" y="208" text-anchor="middle" class="d-suave" font-size="12.5">código .ino → archivo .hex</text>
+    <path d="M127 134V158" class="d-linea" marker-end="url(#f2)"/>
+
+    <rect x="276" y="20" width="472" height="262" rx="12" class="d-zona"/>
+    <text x="292" y="46" class="d-suave" font-size="13" font-weight="600">NAVEGADOR (localhost:8000)</text>
+    <rect x="294" y="64" width="200" height="70" rx="8" class="d-acento"/>
+    <text x="394" y="92" text-anchor="middle" class="d-texto" font-size="14" font-weight="600">avr.js</text>
+    <text x="394" y="112" text-anchor="middle" class="d-suave" font-size="12.5">Arduino UNO virtual</text>
+    <rect x="530" y="64" width="200" height="54" rx="8" class="d-caja"/>
+    <text x="630" y="86" text-anchor="middle" class="d-texto" font-size="14" font-weight="600">teclado.js</text>
+    <text x="630" y="105" text-anchor="middle" class="d-suave" font-size="12.5">teclas → pines</text>
+    <rect x="530" y="130" width="200" height="54" rx="8" class="d-caja"/>
+    <text x="630" y="152" text-anchor="middle" class="d-texto" font-size="14" font-weight="600">servos.js</text>
+    <text x="630" y="171" text-anchor="middle" class="d-suave" font-size="12.5">pines → ángulos</text>
+    <rect x="530" y="196" width="200" height="54" rx="8" class="d-caja"/>
+    <text x="630" y="218" text-anchor="middle" class="d-texto" font-size="14" font-weight="600">mano3d.js</text>
+    <text x="630" y="237" text-anchor="middle" class="d-suave" font-size="12.5">ángulos → dedos 3D</text>
+    <rect x="294" y="160" width="200" height="90" rx="8" class="d-caja"/>
+    <text x="394" y="188" text-anchor="middle" class="d-texto" font-size="14" font-weight="600">app.js + config.js</text>
+    <text x="394" y="208" text-anchor="middle" class="d-suave" font-size="12.5">une todo, editor, panel;</text>
+    <text x="394" y="226" text-anchor="middle" class="d-suave" font-size="12.5">pines y calibración</text>
+
+    <path d="M224 195H260V99H292" class="d-linea" marker-end="url(#f2)"/>
+    <text x="250" y="152" text-anchor="middle" class="d-suave" font-size="12" transform="rotate(-90 250 152)">.hex</text>
+    <path d="M528 91H496" class="d-linea" marker-end="url(#f2)"/>
+    <path d="M494 112L528 150" class="d-linea" marker-end="url(#f2)"/>
+    <path d="M630 184V194" class="d-linea" marker-end="url(#f2)"/>
+  </svg>
+  <figcaption>El servidor solo compila y guarda archivos. Todo lo que se ve y se mueve ocurre en el navegador.</figcaption>
+</figure>
+
+<div class="tabla"><table>
+  <thead><tr><th>Archivo</th><th>Qué hace</th></tr></thead>
+  <tbody>
+    <tr><td><code>servidor.py</code></td><td>Sirve la página, entrega los <code>.ino</code>, compila con <code>arduino-cli</code> y guarda tus cambios (dejando un respaldo en <code>simulador/build/respaldos/</code>).</td></tr>
+    <tr><td><code>js/avr.js</code></td><td>El Arduino UNO virtual, construido con la librería <code>avr8js</code>.</td></tr>
+    <tr><td><code>js/teclado.js</code></td><td>Convierte una tecla pulsada en las señales eléctricas que lee la librería Keypad.</td></tr>
+    <tr><td><code>js/servos.js</code></td><td>Mide los pulsos de los pines de servo y los convierte en ángulos.</td></tr>
+    <tr><td><code>js/mano3d.js</code></td><td>Dibuja la mano con Three.js y dobla cada falange.</td></tr>
+    <tr><td><code>js/config.js</code></td><td>Describe el <em>hardware</em>: en qué pin está cada servo y cada línea del teclado, y la calibración de cada dedo.</td></tr>
+    <tr><td><code>js/app.js</code></td><td>Une todo: editor, botones, panel de servos y la animación.</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="emulador">5. El Arduino virtual</h2>
+<p>El Arduino UNO tiene un microcontrolador <strong>ATmega328P</strong> que funciona a <strong>16 MHz</strong>: ejecuta unos 16 millones de pasos pequeños por segundo. Al compilar, <code>arduino-cli</code> convierte tu código en esos pasos, en un archivo <code>.hex</code>, exactamente el mismo que se subiría a la placa real.</p>
+<p>La librería <code>avr8js</code> imita ese microcontrolador paso a paso, junto con sus temporizadores, que hacen funcionar <code>millis()</code> y la librería Servo, sus pines y su puerto serie. En cada cuadro de animación, unas 60 veces por segundo, el simulador ejecuta los pasos que corresponden al tiempo transcurrido. Por eso <code>millis()</code> avanza a la velocidad real y el modo continuo de la tecla 1 abre y cierra la mano cada 700 ms, como en la placa.</p>
+<div class="nota"><p>Si la computadora está ocupada y no alcanza a ejecutar 16 millones de pasos por segundo, el Arduino virtual va más lento, pero no se equivoca: todo ocurre en el mismo orden, solo que más despacio. El indicador <strong>Velocidad</strong> lo muestra.</p></div>
+
+<h2 id="teclado">6. Cómo se simula el teclado</h2>
+<p>El teclado de membrana no envía letras: es una cuadrícula de 4 cables horizontales (filas) y 4 verticales (columnas). Cada tecla, al pulsarse, une una fila con una columna. En el circuito, las filas van a los pines <strong>2, 3, 4 y 5</strong> y las columnas a los pines <strong>6, 7, 8 y 10</strong>.</p>
+
+<figure>
+  <svg viewBox="0 0 760 270" role="img" aria-label="La tecla 5 une la fila 2 con la columna 2">
+    <g class="d-linea">
+      <path d="M120 60H420"/><path d="M120 110H420"/><path d="M120 160H420"/><path d="M120 210H420"/>
+      <path d="M190 40V240"/><path d="M260 40V240"/><path d="M330 40V240"/><path d="M400 40V240"/>
+    </g>
+    <path d="M120 110H260V40" class="d-pulso"/>
+    <circle cx="260" cy="110" r="15" class="d-acento"/>
+    <text x="260" y="115" text-anchor="middle" class="d-texto" font-size="14" font-weight="700">5</text>
+    <text x="40" y="65" class="d-suave" font-size="13">Fila 1 · D2</text>
+    <text x="40" y="115" class="d-texto" font-size="13" font-weight="600">Fila 2 · D3</text>
+    <text x="40" y="165" class="d-suave" font-size="13">Fila 3 · D4</text>
+    <text x="40" y="215" class="d-suave" font-size="13">Fila 4 · D5</text>
+    <text x="190" y="30" text-anchor="middle" class="d-suave" font-size="12.5">D6</text>
+    <text x="260" y="30" text-anchor="middle" class="d-texto" font-size="12.5" font-weight="600">D7</text>
+    <text x="330" y="30" text-anchor="middle" class="d-suave" font-size="12.5">D8</text>
+    <text x="400" y="30" text-anchor="middle" class="d-suave" font-size="12.5">D10</text>
+    <text x="460" y="84" class="d-texto" font-size="14" font-weight="600">Cómo la encuentra Keypad:</text>
+    <text x="460" y="112" class="d-suave" font-size="13">1. Pone una columna a 0 V, una a la vez.</text>
+    <text x="460" y="136" class="d-suave" font-size="13">2. Lee las 4 filas.</text>
+    <text x="460" y="160" class="d-suave" font-size="13">3. Si la fila 2 también marca 0 V</text>
+    <text x="460" y="180" class="d-suave" font-size="13">    mientras la columna D7 está a 0 V,</text>
+    <text x="460" y="200" class="d-suave" font-size="13">    la tecla pulsada es el 5.</text>
+  </svg>
+  <figcaption>La librería recorre las columnas cientos de veces por segundo. El simulador cumple el papel del cable: mientras la tecla está pulsada, la fila copia el voltaje de su columna.</figcaption>
+</figure>
+
+<p>El simulador mantiene cada tecla pulsada al menos 0.12 segundos, aunque hagas un clic muy rápido, para que la librería tenga tiempo de verla. En la placa real pasa lo mismo: un dedo nunca pulsa menos que eso.</p>
+
+<h2 id="servos">7. Cómo se leen los servos</h2>
+<p>Un servo no recibe un número: recibe un <strong>pulso eléctrico</strong> cada 20 milisegundos. La duración del pulso indica el ángulo. La librería Servo de Arduino usa esta escala:</p>
+
+<figure>
+  <svg viewBox="0 0 760 210" role="img" aria-label="Duración del pulso y ángulo del servo">
+    <text x="20" y="58" class="d-texto" font-size="13" font-weight="600">0°</text>
+    <path d="M70 70H110V40H128V70H330" class="d-pulso"/>
+    <text x="119" y="32" text-anchor="middle" class="d-suave" font-size="12">0.54 ms</text>
+    <text x="20" y="128" class="d-texto" font-size="13" font-weight="600">90°</text>
+    <path d="M70 140H110V110H166V140H330" class="d-pulso"/>
+    <text x="138" y="102" text-anchor="middle" class="d-suave" font-size="12">1.47 ms</text>
+    <text x="20" y="188" class="d-texto" font-size="13" font-weight="600">180°</text>
+    <path d="M70 200H110V170H204V200H330" class="d-pulso"/>
+    <text x="157" y="162" text-anchor="middle" class="d-suave" font-size="12">2.40 ms</text>
+    <text x="380" y="70" class="d-texto" font-size="14" font-weight="600">El simulador mide cada pulso:</text>
+    <text x="380" y="98" class="d-suave" font-size="13">anota el momento en que el pin sube</text>
+    <text x="380" y="120" class="d-suave" font-size="13">y el momento en que baja,</text>
+    <text x="380" y="142" class="d-suave" font-size="13">y convierte esa duración en grados.</text>
+    <text x="380" y="176" class="d-texto" font-size="13">ángulo = (µs − 544) × 180 ÷ 1856</text>
+  </svg>
+  <figcaption>Es lo mismo que haría un servo real: tampoco sabe qué escribió el programa, solo mide el pulso.</figcaption>
+</figure>
+
+<p>Un servo real no salta al ángulo nuevo: tarda unos 0.12 s en girar 60°. El simulador mueve el eje a esa velocidad (unos 500° por segundo), así que una mano que pasa de abierta a cerrada tarda unos 0.2 s, como la real.</p>
+
+<h2 id="dedos">8. Del ángulo al dedo</h2>
+<p>Cada servo quedó montado de forma distinta, así que el mismo ángulo no significa lo mismo en todos los dedos. Por eso cada dedo tiene su <strong>calibración</strong>: el ángulo en que queda abierto y en el que queda cerrado. Son los mismos valores del código de la mano.</p>
+
+<div class="tabla"><table>
+  <thead><tr><th>Dedo</th><th>Pin</th><th>Abierto</th><th>Cerrado</th><th>Al cerrar, el ángulo…</th></tr></thead>
+  <tbody>
+    <tr><td>Pulgar</td><td>A0</td><td>106°</td><td>6°</td><td>baja</td></tr>
+    <tr><td>Índice</td><td>D9</td><td>180°</td><td>90°</td><td>baja</td></tr>
+    <tr><td>Medio</td><td>D12</td><td>90°</td><td>180°</td><td>sube</td></tr>
+    <tr><td>Anular</td><td>D11</td><td>90°</td><td>150°</td><td>sube</td></tr>
+    <tr><td>Meñique</td><td>D13</td><td>90°</td><td>180°</td><td>sube</td></tr>
+  </tbody>
+</table></div>
+
+<p>Con esa tabla, el ángulo se convierte en un <strong>porcentaje de flexión</strong>: 0 % es el dedo estirado y 100 % el dedo cerrado. Por ejemplo, el índice a 135° está a medio camino entre 180° y 90°, es decir, al 50 %.</p>
+<p>En la mano real, la polea del servo jala un hilo que recorre el dedo por dentro, y las tres falanges se doblan juntas. El simulador imita ese efecto repartiendo la flexión entre las tres articulaciones: con el dedo al 100 %, la base gira 70°, la del medio 95° y la punta 70°. El pulgar no tiene hilo: va unido directo a su servo en la palma y gira de lado hacia la palma.</p>
+<div class="nota"><p>La calibración está en <code>js/config.js</code>. Si recablean un servo o lo vuelven a calibrar en la mano real, ese es el único archivo que hay que actualizar.</p></div>
+
+<h2 id="gestos">9. Teclas y gestos</h2>
+<p>Con el programa original, <code>mano_robotica_teclado.ino</code>:</p>
+<div class="tabla"><table>
+  <thead><tr><th>Tecla</th><th>Gesto</th><th>Dedos abiertos</th></tr></thead>
+  <tbody>
+    <tr><td><span class="t">0</span></td><td>Detener y abrir la mano</td><td>todos</td></tr>
+    <tr><td><span class="t">1</span></td><td>Abrir y cerrar sin parar, cada 700 ms</td><td>alterna</td></tr>
+    <tr><td><span class="t">2</span></td><td>Puño</td><td>ninguno</td></tr>
+    <tr><td><span class="t">3</span></td><td>Letra A</td><td>pulgar</td></tr>
+    <tr><td><span class="t">4</span></td><td>Letra L</td><td>pulgar e índice</td></tr>
+    <tr><td><span class="t">5</span></td><td>Número 1</td><td>índice</td></tr>
+    <tr><td><span class="t">6</span></td><td>Número 2</td><td>índice y medio</td></tr>
+    <tr><td><span class="t">7</span> <span class="t">8</span> <span class="t">9</span> <span class="t esp">A</span>–<span class="t esp">D</span> <span class="t esp">*</span> <span class="t esp">#</span></td><td>Libres para nuevos gestos</td><td>—</td></tr>
+  </tbody>
+</table></div>
+<p>Cualquier tecla de gesto detiene también el modo continuo. El modo continuo no usa <code>delay()</code>: compara <code>millis()</code> con el último cambio, así que el teclado sigue respondiendo mientras la mano se mueve.</p>
+<p>El selector de arriba también permite correr <code>prueba_servos.ino</code>, que mueve todos los servos entre 90° y 180°. Ahí verás ángulos en rojo: ese programa no respeta los límites del pulgar ni del anular.</p>
+
+<h2 id="modificar">10. Agregar un gesto</h2>
+<p>Ejemplo: que la tecla <span class="t">7</span> muestre tres dedos (pulgar, índice y medio).</p>
+<p><strong>a)</strong> Junto a las otras funciones de gestos, agrega:</p>
+<pre><code>// NUMERO 3
+void numeroTres() {
+  cerrarMano();
+  pulgar.write(pulgarAbierto);
+  indice.write(indiceAbierto);
+  medio.write(medioAbierto);
+}</code></pre>
+<p><strong>b)</strong> Dentro de <code>loop()</code>, junto a las otras teclas:</p>
+<pre><code>  // TECLA 7: NUMERO 3
+  if (tecla == '7') {
+    movimiento = false;
+    numeroTres();
+  }</code></pre>
+<p><strong>c)</strong> Pulsa <em>Compilar y ejecutar</em> y luego la tecla 7. Si hay un error de escritura, el panel <em>Compilación</em> dice en qué línea está, y la mano sigue con el programa anterior. Cuando funcione, <em>Guardar en .ino</em> lo escribe en el archivo que se sube a la placa real.</p>
+
+<h2 id="limites">11. Lo que no simula</h2>
+<p>El simulador reproduce fielmente la <strong>lógica</strong>: qué hace el programa, cuándo y con qué ángulos. No reproduce la física del montaje:</p>
+<ul>
+  <li><strong>Alimentación.</strong> Cinco servos moviéndose a la vez pueden pedir más corriente de la que da el Arduino. En la placa real eso causa temblores o reinicios; aquí nunca pasa.</li>
+  <li><strong>Fuerza y fricción.</strong> Los servos virtuales siempre llegan al ángulo pedido. En la mano real un hilo flojo, una falange que roza o un objeto en la mano pueden impedirlo.</li>
+  <li><strong>Topes mecánicos.</strong> Si el código pide un ángulo fuera del recorrido calibrado, el dedo virtual se queda en su tope y el ángulo se marca en rojo. El servo real forzaría la pieza.</li>
+  <li><strong>Forma exacta.</strong> La mano 3D está hecha con piezas simples que imitan la mano del proyecto. Las proporciones son aproximadas.</li>
+</ul>
+
+<h2 id="problemas">12. Problemas comunes</h2>
+<div class="tabla"><table>
+  <thead><tr><th>Síntoma</th><th>Causa y solución</th></tr></thead>
+  <tbody>
+    <tr><td>«Sin servidor» o la página no abre</td><td>El servidor no está corriendo. Ejecuta <code>python3 simulador/servidor.py</code> y deja esa Terminal abierta.</td></tr>
+    <tr><td><code>bad CPU type in executable</code></td><td>Falta Rosetta en una Mac con chip Apple: <code>softwareupdate --install-rosetta --agree-to-license</code>.</td></tr>
+    <tr><td><code>Keypad.h: No such file</code></td><td>Falta la librería: <code>arduino-cli lib install Keypad Servo</code>.</td></tr>
+    <tr><td>Las teclas de la computadora no responden</td><td>El cursor está en el editor de código. Haz clic en la mano 3D o usa el teclado en pantalla.</td></tr>
+    <tr><td>Un dedo no se mueve</td><td>El pin de <code>attach()</code> en el código no coincide con el de <code>js/config.js</code>. Deben ser iguales, como en el circuito real.</td></tr>
+    <tr><td>Velocidad muy por debajo de 100 %</td><td>La computadora va justa. Cierra otras pestañas; los resultados siguen siendo correctos, solo más lentos.</td></tr>
+    <tr><td>El puerto 8000 está ocupado</td><td>Usa otro: <code>PUERTO=8080 python3 simulador/servidor.py</code> y abre <code>http://localhost:8080</code>.</td></tr>
+  </tbody>
+</table></div>
+
+</div>
+</body>
+</html>
